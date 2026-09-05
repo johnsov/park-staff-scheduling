@@ -2,22 +2,45 @@ import pandas as pd
 
 
 # ============================================================
-# CONFIGURACIÓN
+# FUNCIONES AUXILIARES
 # ============================================================
 
-DURACION_BLOQUE = 4
-
-
-# ============================================================
-# FUNCIÓN AUXILIAR
-# ============================================================
-
-def crear_bloques(calendario, puesto, prefijo):
+def normalizar_texto(valor):
     """
-    Crea bloques consecutivos de 4 días para un puesto.
+    Normaliza textos para evitar problemas de mayúsculas,
+    espacios o valores nulos.
+    """
 
-    Cada bloque representa un grupo de personas que permanecerá
-    durante los 4 días completos.
+    return (
+        str(valor)
+        .strip()
+        .upper()
+    )
+
+
+# ============================================================
+# CREAR BLOQUES CONTINUOS
+# ============================================================
+
+def crear_bloques(
+    calendario,
+    puesto,
+    prefijo,
+    fecha_inicio_puesto,
+    personas,
+    duracion_dias
+):
+    """
+    Crea bloques continuos para un puesto.
+
+    Los bloques pueden continuar utilizando días del siguiente
+    mes siempre que existan en la hoja Calendario.
+
+    Ejemplo:
+
+        AP-01 → 21/09 al 24/09
+        AP-02 → 25/09 al 28/09
+        AP-03 → 29/09 al 02/10
     """
 
     fechas = (
@@ -27,63 +50,95 @@ def crear_bloques(calendario, puesto, prefijo):
         .tolist()
     )
 
+    fecha_inicio_puesto = pd.to_datetime(
+        fecha_inicio_puesto
+    )
+
+    # Solo usar fechas desde la apertura del puesto
+    fechas = [
+        fecha
+        for fecha in fechas
+        if fecha >= fecha_inicio_puesto
+    ]
+
     bloques = []
 
     numero_bloque = 1
     i = 0
 
-    while i + DURACION_BLOQUE <= len(fechas):
+    while i + duracion_dias <= len(fechas):
 
         bloque_fechas = fechas[
-            i:i + DURACION_BLOQUE
+            i:i + duracion_dias
         ]
 
-        # ----------------------------------------------------
-        # Verificar consecutividad
-        # ----------------------------------------------------
-
+        # Verificar que sean días consecutivos
         son_consecutivos = all(
-            bloque_fechas[j] - bloque_fechas[j - 1]
-            == pd.Timedelta(days=1)
-            for j in range(1, DURACION_BLOQUE)
+
+            bloque_fechas[j]
+            -
+            bloque_fechas[j - 1]
+            ==
+            pd.Timedelta(days=1)
+
+            for j in range(
+                1,
+                duracion_dias
+            )
+
         )
 
         if not son_consecutivos:
+
             i += 1
             continue
 
-        # ----------------------------------------------------
-        # Información del primer día
-        # ----------------------------------------------------
-
-        primera_fecha = bloque_fechas[0]
-
-        fila_inicio = calendario[
-            calendario["fecha"] == primera_fecha
-        ].iloc[0]
-
-        # ----------------------------------------------------
-        # Crear bloque
-        # ----------------------------------------------------
-
         bloques.append({
-            "id": f"{prefijo}-{numero_bloque:02d}",
-            "puesto": puesto,
-            "tipo": "bloque",
-            "fecha": primera_fecha,
-            "fecha_inicio": primera_fecha,
-            "fecha_fin": bloque_fechas[-1],
-            "duracion_dias": DURACION_BLOQUE,
-            "horario": "24h",
-            "personas": 4,
 
-            # Información temporal
-            "tipo_dia": fila_inicio["tipo_dia"],
-            "festivo": fila_inicio["festivo"]
+            "id": (
+                f"{prefijo}-"
+                f"{numero_bloque:02d}"
+            ),
+
+            "puesto": puesto,
+
+            "tipo": "bloque",
+
+            "fecha": bloque_fechas[0],
+
+            "fecha_inicio": bloque_fechas[0],
+
+            "fecha_fin": bloque_fechas[-1],
+
+            "duracion_dias": duracion_dias,
+
+            "horario": "24h",
+
+            "personas": personas,
+
+            # Información del día inicial
+            "tipo_dia": (
+                calendario.loc[
+                    calendario["fecha"]
+                    == bloque_fechas[0],
+                    "tipo_dia"
+                ].iloc[0]
+            ),
+
+            "festivo": (
+                calendario.loc[
+                    calendario["fecha"]
+                    == bloque_fechas[0],
+                    "festivo"
+                ].iloc[0]
+            )
+
         })
 
         numero_bloque += 1
-        i += DURACION_BLOQUE
+
+        # Siguiente bloque después del actual
+        i += duracion_dias
 
     return bloques
 
@@ -92,175 +147,436 @@ def crear_bloques(calendario, puesto, prefijo):
 # FUNCIÓN PRINCIPAL
 # ============================================================
 
-def crear_turnos(calendario):
+def crear_turnos(
+    calendario,
+    configuracion_puestos
+):
     """
-    Crea las necesidades de puestos de control.
+    Crea todos los turnos de acuerdo con:
 
-    Puestos:
+    - Calendario
+    - Configuracion_Puestos
 
-    1. Amor y Paz
-       - 24 horas
-       - bloques de 4 días
-       - 4 personas
+    Configuracion_Puestos debe tener:
 
-    2. Pato-Leonera
-       - 24 horas
-       - bloques de 4 días
-       - 4 personas
+        puesto
+        fecha_inicio
+        personas
+        duracion_dias
 
-    3. Pato-Pance
-       - sábados, domingos y festivos
-       - 5 personas
-       - turno de un día
+    Puestos actuales:
 
-    4. Topacio
-       - sábados, domingos y festivos
-       - 1 persona
-       - turno de un día
-
-    Las fechas son controladas exclusivamente desde la hoja
-    Calendario del Excel.
+        Amor y Paz
+        Pato-Leonera
+        Pato-Pance
+        Topacio
     """
 
     # ========================================================
-    # COPIA Y LIMPIEZA DEL CALENDARIO
+    # COPIAS
     # ========================================================
 
     calendario = calendario.copy()
+
+    configuracion_puestos = (
+        configuracion_puestos.copy()
+    )
+
+    # ========================================================
+    # NORMALIZAR FECHAS
+    # ========================================================
 
     calendario["fecha"] = pd.to_datetime(
         calendario["fecha"]
     )
 
-    calendario["tipo_dia"] = (
-        calendario["tipo_dia"]
-        .astype(str)
-        .str.strip()
-        .str.lower()
-    )
+    configuracion_puestos[
+        "fecha_inicio"
+    ] = pd.to_datetime(
 
-    calendario["festivo"] = (
-        calendario["festivo"]
-        .astype(str)
-        .str.strip()
-        .str.upper()
-    )
+        configuracion_puestos[
+            "fecha_inicio"
+        ]
 
-    calendario = calendario.sort_values(
-        "fecha"
-    ).reset_index(drop=True)
+    )
 
     # ========================================================
-    # LISTA GENERAL DE TURNOS
+    # NORMALIZAR CALENDARIO
+    # ========================================================
+
+    if "tipo_dia" in calendario.columns:
+
+        calendario["tipo_dia"] = (
+
+            calendario["tipo_dia"]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+
+        )
+
+    else:
+
+        # Crear automáticamente el día si no existe
+        dias = {
+
+            0: "lunes",
+            1: "martes",
+            2: "miercoles",
+            3: "jueves",
+            4: "viernes",
+            5: "sabado",
+            6: "domingo"
+
+        }
+
+        calendario["tipo_dia"] = (
+
+            calendario["fecha"]
+            .dt.weekday
+            .map(dias)
+
+        )
+
+    # ========================================================
+    # FESTIVOS
+    # ========================================================
+
+    if "festivo" in calendario.columns:
+
+        calendario["festivo"] = (
+
+            calendario["festivo"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+
+        )
+
+    else:
+
+        calendario["festivo"] = "NO"
+
+    # ========================================================
+    # ORDENAR
+    # ========================================================
+
+    calendario = (
+
+        calendario
+        .sort_values("fecha")
+        .reset_index(drop=True)
+
+    )
+
+    configuracion_puestos = (
+
+        configuracion_puestos
+        .sort_values("fecha_inicio")
+        .reset_index(drop=True)
+
+    )
+
+    # ========================================================
+    # LISTA DE TURNOS
     # ========================================================
 
     turnos = []
 
     # ========================================================
-    # 1. AMOR Y PAZ
+    # RECORRER CONFIGURACIÓN
     # ========================================================
 
-    bloques_amor_paz = crear_bloques(
-        calendario=calendario,
-        puesto="Amor y Paz",
-        prefijo="AP"
-    )
+    for _, config in configuracion_puestos.iterrows():
 
-    turnos.extend(
-        bloques_amor_paz
-    )
+        puesto = str(
+            config["puesto"]
+        ).strip()
 
-    # ========================================================
-    # 2. PATO-LEONERA
-    # ========================================================
+        fecha_inicio = config[
+            "fecha_inicio"
+        ]
 
-    bloques_pato_leonera = crear_bloques(
-        calendario=calendario,
-        puesto="Pato-Leonera",
-        prefijo="PL"
-    )
-
-    turnos.extend(
-        bloques_pato_leonera
-    )
-
-    # ========================================================
-    # 3. PATO-PANCE
-    # ========================================================
-
-    contador_pato_pance = 1
-
-    for _, fila in calendario.iterrows():
-
-        tipo_dia = fila["tipo_dia"]
-        festivo = fila["festivo"]
-
-        es_fin_semana_o_festivo = (
-            tipo_dia in ["sabado", "domingo"]
-            or festivo == "SI"
+        personas = int(
+            config["personas"]
         )
 
-        if es_fin_semana_o_festivo:
-
-            turnos.append({
-                "id": f"PP-{contador_pato_pance:02d}",
-                "puesto": "Pato-Pance",
-                "tipo": "turno",
-                "fecha": fila["fecha"],
-                "fecha_inicio": fila["fecha"],
-                "fecha_fin": fila["fecha"],
-                "duracion_dias": 1,
-                "horario": "dia",
-                "personas": 5,
-                "tipo_dia": tipo_dia,
-                "festivo": festivo
-            })
-
-            contador_pato_pance += 1
-
-    # ========================================================
-    # 4. TOPACIO
-    # ========================================================
-
-    contador_topacio = 1
-
-    for _, fila in calendario.iterrows():
-
-        tipo_dia = fila["tipo_dia"]
-        festivo = fila["festivo"]
-
-        es_fin_semana_o_festivo = (
-            tipo_dia in ["sabado", "domingo"]
-            or festivo == "SI"
+        duracion_dias = int(
+            config["duracion_dias"]
         )
 
-        if es_fin_semana_o_festivo:
+        # ====================================================
+        # AMOR Y PAZ
+        # ====================================================
 
-            turnos.append({
-                "id": f"TO-{contador_topacio:02d}",
-                "puesto": "Topacio",
-                "tipo": "turno",
-                "fecha": fila["fecha"],
-                "fecha_inicio": fila["fecha"],
-                "fecha_fin": fila["fecha"],
-                "duracion_dias": 1,
-                "horario": "dia",
-                "personas": 1,
-                "tipo_dia": tipo_dia,
-                "festivo": festivo
-            })
+        if puesto == "Amor y Paz":
 
-            contador_topacio += 1
+            bloques = crear_bloques(
+
+                calendario=calendario,
+
+                puesto=puesto,
+
+                prefijo="AP",
+
+                fecha_inicio_puesto=fecha_inicio,
+
+                personas=personas,
+
+                duracion_dias=duracion_dias
+
+            )
+
+            turnos.extend(
+                bloques
+            )
+
+        # ====================================================
+        # PATO-LEONERA
+        # ====================================================
+
+        elif puesto == "Pato-Leonera":
+
+            bloques = crear_bloques(
+
+                calendario=calendario,
+
+                puesto=puesto,
+
+                prefijo="PL",
+
+                fecha_inicio_puesto=fecha_inicio,
+
+                personas=personas,
+
+                duracion_dias=duracion_dias
+
+            )
+
+            turnos.extend(
+                bloques
+            )
+
+        # ====================================================
+        # PATO-PANCE
+        # ====================================================
+
+        elif puesto == "Pato-Pance":
+
+            contador = 1
+
+            calendario_puesto = calendario[
+
+                calendario["fecha"]
+                >=
+                fecha_inicio
+
+            ]
+
+            for _, fila in (
+                calendario_puesto.iterrows()
+            ):
+
+                tipo_dia = normalizar_texto(
+                    fila["tipo_dia"]
+                )
+
+                festivo = normalizar_texto(
+                    fila["festivo"]
+                )
+
+                es_dia_puesto = (
+
+                    tipo_dia in [
+                        "SABADO",
+                        "DOMINGO"
+                    ]
+
+                    or
+
+                    festivo == "SI"
+
+                )
+
+                if es_dia_puesto:
+
+                    turnos.append({
+
+                        "id": (
+                            f"PP-"
+                            f"{contador:02d}"
+                        ),
+
+                        "puesto": puesto,
+
+                        "tipo": "turno",
+
+                        "fecha": fila["fecha"],
+
+                        "fecha_inicio": (
+                            fila["fecha"]
+                        ),
+
+                        "fecha_fin": (
+                            fila["fecha"]
+                        ),
+
+                        "duracion_dias": (
+                            duracion_dias
+                        ),
+
+                        "horario": "dia",
+
+                        "personas": personas,
+
+                        "tipo_dia": (
+                            fila["tipo_dia"]
+                        ),
+
+                        "festivo": (
+                            fila["festivo"]
+                        )
+
+                    })
+
+                    contador += 1
+
+        # ====================================================
+        # TOPACIO
+        # ====================================================
+
+        elif puesto == "Topacio":
+
+            contador = 1
+
+            calendario_puesto = calendario[
+
+                calendario["fecha"]
+                >=
+                fecha_inicio
+
+            ]
+
+            for _, fila in (
+                calendario_puesto.iterrows()
+            ):
+
+                tipo_dia = normalizar_texto(
+                    fila["tipo_dia"]
+                )
+
+                festivo = normalizar_texto(
+                    fila["festivo"]
+                )
+
+                es_dia_puesto = (
+
+                    tipo_dia in [
+                        "SABADO",
+                        "DOMINGO"
+                    ]
+
+                    or
+
+                    festivo == "SI"
+
+                )
+
+                if es_dia_puesto:
+
+                    turnos.append({
+
+                        "id": (
+                            f"TO-"
+                            f"{contador:02d}"
+                        ),
+
+                        "puesto": puesto,
+
+                        "tipo": "turno",
+
+                        "fecha": fila["fecha"],
+
+                        "fecha_inicio": (
+                            fila["fecha"]
+                        ),
+
+                        "fecha_fin": (
+                            fila["fecha"]
+                        ),
+
+                        "duracion_dias": (
+                            duracion_dias
+                        ),
+
+                        "horario": "dia",
+
+                        "personas": personas,
+
+                        "tipo_dia": (
+                            fila["tipo_dia"]
+                        ),
+
+                        "festivo": (
+                            fila["festivo"]
+                        )
+
+                    })
+
+                    contador += 1
+
+        else:
+
+            print(
+                f"⚠ Puesto no reconocido: "
+                f"{puesto}"
+            )
 
     # ========================================================
     # DATAFRAME FINAL
     # ========================================================
 
-    turnos_df = pd.DataFrame(turnos)
+    turnos_df = pd.DataFrame(
+        turnos
+    )
 
-    # Ordenar cronológicamente y luego por puesto
-    turnos_df = turnos_df.sort_values(
-        by=["fecha_inicio", "puesto"]
-    ).reset_index(drop=True)
+    if turnos_df.empty:
+
+        return turnos_df
+
+    # ========================================================
+    # NORMALIZAR FECHAS
+    # ========================================================
+
+    turnos_df["fecha"] = pd.to_datetime(
+        turnos_df["fecha"]
+    )
+
+    turnos_df["fecha_inicio"] = pd.to_datetime(
+        turnos_df["fecha_inicio"]
+    )
+
+    turnos_df["fecha_fin"] = pd.to_datetime(
+        turnos_df["fecha_fin"]
+    )
+
+    # ========================================================
+    # ORDENAR
+    # ========================================================
+
+    turnos_df = (
+
+        turnos_df
+        .sort_values(
+
+            by=[
+                "fecha_inicio",
+                "puesto"
+            ]
+
+        )
+        .reset_index(drop=True)
+
+    )
 
     return turnos_df

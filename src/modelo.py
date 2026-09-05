@@ -135,25 +135,27 @@ def agregar_restriccion_elegibilidad(
             puesto = turnos_df.loc[t, "puesto"]
 
         # =================================================
-        # AMOR Y PAZ
+        # RESTRICCIÓN ESTRATEGIA MINERÍA
         # =================================================
 
-        if puesto == "Amor y Paz":
+        estrategia = str(
+            personal.loc[p, "estrategia"]
+        ).strip().upper()
 
-            estrategia = (
-                str(
-                    personal.loc[p, "estrategia"]
-                )
-                .strip()
-                .upper()
-            )
+        if "MINER" in estrategia:
 
-            if "MINER" in estrategia:
+            puestos_permitidos_mineria = [
+                "Pato-Pance",
+                "Topacio",
+                "Pato-Leonera"
+            ]
+
+            if puesto not in puestos_permitidos_mineria:
 
                 model.Add(
                     x[(p, t)] == 0
                 )
-
+                
             # =================================================
             # PATO-PANCE
             # =================================================

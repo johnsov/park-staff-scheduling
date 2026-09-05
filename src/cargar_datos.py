@@ -3,55 +3,85 @@ import pandas as pd
 
 def cargar_datos(ruta_excel):
 
-    # =========================
-    # CARGAR
-    # =========================
+    # ========================================================
+    # PERSONAL
+    # ========================================================
 
     personal = pd.read_excel(
         ruta_excel,
         sheet_name="Personal"
     )
 
+    personal.columns = (
+        personal.columns
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
+
+    # ========================================================
+    # CALENDARIO
+    # ========================================================
+
     calendario = pd.read_excel(
         ruta_excel,
         sheet_name="Calendario"
     )
 
-    # =========================
-    # LIMPIAR COLUMNAS
-    # =========================
-
-    personal.columns = (
-        personal.columns
+    calendario.columns = (
+        calendario.columns
+        .astype(str)
         .str.strip()
         .str.lower()
     )
 
-    # =========================
-    # NORMALIZAR SI/NO
-    # =========================
+    calendario["fecha"] = pd.to_datetime(
+        calendario["fecha"]
+    )
 
-    columnas_si_no = [
+    calendario["tipo_dia"] = (
+        calendario["tipo_dia"]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
 
-        "activo",
-        "puede_arbolito",
-        "puede_noche_arbolito",
-        "puede_pato",
-        "conductor_carro",
-        "conductor_moto",
-        "ecoturismo"
+    calendario["festivo"] = (
+        calendario["festivo"]
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
 
-    ]
+    # ========================================================
+    # CONFIGURACIÓN DE PUESTOS
+    # ========================================================
 
-    for col in columnas_si_no:
+    configuracion_puestos = pd.read_excel(
+        ruta_excel,
+        sheet_name="Configuracion_Puestos"
+    )
 
-        personal[col] = (
+    configuracion_puestos.columns = (
+        configuracion_puestos.columns
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
 
-            personal[col]
-            .astype(str)
-            .str.strip()
-            .str.upper()
+    # Convertir fechas
 
+    if "fecha_inicio" in configuracion_puestos.columns:
+
+        configuracion_puestos["fecha_inicio"] = (
+            pd.to_datetime(
+                configuracion_puestos["fecha_inicio"],
+                errors="coerce"
+            )
         )
 
-    return personal, calendario
+    return (
+        personal,
+        calendario,
+        configuracion_puestos
+    )
