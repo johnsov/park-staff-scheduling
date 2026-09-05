@@ -27,20 +27,24 @@ def crear_bloques(
     puesto,
     prefijo,
     fecha_inicio_puesto,
-    personas,
-    duracion_dias
+    duracion_dias,
+    personas
 ):
     """
-    Crea bloques continuos para un puesto.
+    Crea bloques continuos.
 
-    Los bloques pueden continuar utilizando días del siguiente
-    mes siempre que existan en la hoja Calendario.
+    Los bloques comparten el día de relevo.
 
-    Ejemplo:
+    Ejemplo con duración 4:
 
-        AP-01 → 21/09 al 24/09
-        AP-02 → 25/09 al 28/09
-        AP-03 → 29/09 al 02/10
+    Equipo A:
+    lunes -> jueves
+
+    Equipo B:
+    jueves -> domingo
+
+    Equipo C:
+    domingo -> miércoles
     """
 
     fechas = (
@@ -54,7 +58,7 @@ def crear_bloques(
         fecha_inicio_puesto
     )
 
-    # Solo usar fechas desde la apertura del puesto
+    # Solo fechas desde la apertura del puesto
     fechas = [
         fecha
         for fecha in fechas
@@ -64,6 +68,7 @@ def crear_bloques(
     bloques = []
 
     numero_bloque = 1
+
     i = 0
 
     while i + duracion_dias <= len(fechas):
@@ -72,9 +77,8 @@ def crear_bloques(
             i:i + duracion_dias
         ]
 
-        # Verificar que sean días consecutivos
+        # Verificar consecutividad
         son_consecutivos = all(
-
             bloque_fechas[j]
             -
             bloque_fechas[j - 1]
@@ -85,7 +89,6 @@ def crear_bloques(
                 1,
                 duracion_dias
             )
-
         )
 
         if not son_consecutivos:
@@ -114,31 +117,27 @@ def crear_bloques(
 
             "horario": "24h",
 
-            "personas": personas,
-
-            # Información del día inicial
-            "tipo_dia": (
-                calendario.loc[
-                    calendario["fecha"]
-                    == bloque_fechas[0],
-                    "tipo_dia"
-                ].iloc[0]
-            ),
-
-            "festivo": (
-                calendario.loc[
-                    calendario["fecha"]
-                    == bloque_fechas[0],
-                    "festivo"
-                ].iloc[0]
-            )
+            "personas": personas
 
         })
 
         numero_bloque += 1
 
-        # Siguiente bloque después del actual
-        i += duracion_dias
+        # ================================================
+        # IMPORTANTE
+        # ================================================
+        # El siguiente equipo entra el mismo día
+        # que sale el anterior.
+        #
+        # Ejemplo:
+        #
+        # L M X J
+        #       J V S D
+        #
+        # Avanzamos duración - 1
+        # ================================================
+
+        i += duracion_dias - 1
 
     return bloques
 
