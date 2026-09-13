@@ -57,6 +57,7 @@ def agregar_restricciones_pato_pance(
     - Felipe Garcia no puede asistir
     - Esmeralda Acosta no puede asistir los sábados
     - Cristian Libreros no puede asistir los sábados
+    - Alejandra Garcia no puede asistir los sábados
     """
 
     turnos_pp = turnos_df[
@@ -162,6 +163,33 @@ def agregar_restricciones_pato_pance(
                 )
 
             # ------------------------------------------------
+            # 
+            # Pato-Pance solamente los sábados
+            # ------------------------------------------------
+
+            if (
+                nombre == "sebastian ovalle"
+                and tipo_dia != "sabado"
+            ):
+                model.Add(
+                    x[(p, t)] == 0
+                )
+
+            # ------------------------------------------------
+            # Alejandra Garcia
+            # No puede trabajar sábados
+            # ------------------------------------------------
+
+            if (
+                nombre == "alejandra garcia"
+                and tipo_dia == "sabado"
+            ):
+
+                model.Add(
+                    x[(p, t)] == 0
+                )
+
+            # ------------------------------------------------
             # Cristian Libreros
             # No puede trabajar sábados
             # ------------------------------------------------
@@ -238,6 +266,24 @@ def agregar_restricciones_topacio(
                     x[(p, t)] == 0
                 )
 
+            # =================================================
+            # 
+            # Solo puede trabajar Topacio los sábados
+            # =================================================
+
+            if (
+                normalizar_texto(
+                    personal.loc[p, "nombre"]
+                ) == "sebastian ovalle"
+                and normalizar_texto(
+                    turnos_df.loc[t, "tipo_dia"]
+                ) != "sabado"
+            ):
+
+                model.Add(
+                    x[(p, t)] == 0
+                )
+                
             # =================================================
             # ANCHICAYA
             # =================================================

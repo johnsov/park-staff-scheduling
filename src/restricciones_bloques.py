@@ -19,9 +19,9 @@ def agregar_restricciones_amor_paz(
         - 4 personas
         - 2 hombres
         - 2 mujeres
-
-    Las mismas 4 personas permanecen durante los
-    cuatro días del bloque.
+        - Marianne Hoyos no puede
+        - Felipe Garcia no puede
+        - Alejandra Garcia no puede
     """
 
     bloques_ap = turnos_df[
@@ -34,6 +34,15 @@ def agregar_restricciones_amor_paz(
 
     mujeres = personal[
         personal["sexo"] == "F"
+    ].index.tolist()
+
+    # Personas que NO pueden hacer Amor y Paz
+    personas_no_ap = personal[
+        personal["nombre"].str.strip().str.upper().isin([
+            "MARIANNE HOYOS",
+            "FELIPE GARCIA",
+            "ALEJANDRA GARCIA"
+        ])
     ].index.tolist()
 
     for t in bloques_ap:
@@ -62,6 +71,14 @@ def agregar_restricciones_amor_paz(
             == 2
         )
 
+        # ----------------------------------------------------
+        # Marianne Hoyos, Alejandra y Felipe Garcia no pueden hacer AP
+        # ----------------------------------------------------
+
+        for p in personas_no_ap:
+            model.Add(
+                x[(p, t)] == 0
+            )
 
 # ============================================================
 # RESTRICCIONES DE PATO-LEONERA
